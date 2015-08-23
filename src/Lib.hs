@@ -58,6 +58,16 @@ instance FromJSON WExpr where
   parseJSON (Object o) = AndE <$> mapM parsePairOr (M.toList o)
   parseJSON _          = fail "WExpr not Object"
 
+instance ToJSON WExpr where
+  toJSON e = let (sql, pars) = toSQLVec e
+             in object [("sql", String sql)
+                       ,("pars", Array $ V.fromList $ map toJSON pars)]
+
+instance ToJSON SQLVal where
+  toJSON (SQLString s) = String s
+  toJSON (SQLNumber n) = Number n
+  toJSON (SQLTimestamp ts) = String $ T.pack $ formatISO8601 ts
+
 instance FromJSON ValConst where
   parseJSON o@Object{} = Constrs <$> parseConstrs o
   parseJSON v          = Val <$> parseJSON v
@@ -115,7 +125,7 @@ toSQLVec e = (toSQL e, toPars e)
 jsonToWExpr :: String -> String
 jsonToWExpr json = case eitherDecode (BS.pack json) :: Either String WExpr of
   Left msg -> msg
-  Right e  -> show e
+  Right e  -> BS.unpack $ encode e
 
 wrapInParens :: T.Text -> T.Text
 wrapInParens t = "(" <> t <> ")"
