@@ -5,6 +5,7 @@ import           Prelude hiding (EQ, LT, GT)
 import           Control.Applicative
 import           Control.Monad (mzero)
 import           Data.Aeson
+import           Data.Aeson.Types (Parser)
 import qualified Data.ByteString.Lazy.Char8 as BS
 import           Data.Monoid ((<>))
 import qualified Data.Vector as V
@@ -55,13 +56,19 @@ data Constr = EQ    SQLVal
             deriving (Show)
 
 instance FromJSON WExpr where
-  parseJSON v = maybe mzero pure $ parseWExpr v
+  parseJSON (Object o) = AndE <$> mapM parsePairOr (M.toList o)
+  parseJSON _          = fail "WExpr not Object"
 
 instance FromJSON ValConst where
-  parseJSON v = maybe mzero pure $ parseValConst v
+  parseJSON o@Object{} = Constrs <$> parseConstrs o
+  parseJSON v          = Val <$> parseJSON v
 
 instance FromJSON SQLVal where
-  parseJSON v = maybe mzero pure $ parseSQLVal v
+  parseJSON (String s) = pure
+                         $ maybe (SQLString s) SQLTimestamp
+                         $ parseISO8601 (T.unpack s)
+  parseJSON (Number n) = pure $ SQLNumber n
+  parseJSON _          = fail "SQLVal not String or Number"
 
 qMarks :: [a] -> T.Text
 qMarks = T.intersperse ',' . T.pack . map (const '?')
@@ -107,44 +114,31 @@ toSQLVec :: WExpr -> (T.Text, [SQLVal])
 toSQLVec e = (toSQL e, toPars e)
 
 jsonToWExpr :: String -> String
-jsonToWExpr json = case decode (BS.pack json) :: Maybe WExpr of
-  Nothing -> "ERROR: Cannot parse: " <> json
-  Just e  -> show e
+jsonToWExpr json = case eitherDecode (BS.pack json) :: Either String WExpr of
+  Left msg -> msg
+  Right e  -> show e
 
 wrapInParens :: T.Text -> T.Text
 wrapInParens t = "(" <> t <> ")"
 
-parseSQLVal :: Value -> Maybe SQLVal
-parseSQLVal (String s) = pure
-                         $ maybe (SQLString s) SQLTimestamp
-                         $ parseISO8601 (T.unpack s)
-parseSQLVal (Number n) = pure $ SQLNumber n
-parseSQLVal _          = Nothing
-
-parseValConst :: Value -> Maybe ValConst
-parseValConst o@Object{} = Constrs <$> parseConstrs o
-parseValConst v          = Val <$> parseSQLVal v
-
-parseConstrs :: Value -> Maybe [Constr]
+parseConstrs :: Value -> Parser [Constr]
 parseConstrs (Object o) = mapM parseConstr $ M.toList o
-parseConstrs _          = Nothing
+parseConstrs _          = fail "Constraints not Object"
 
-parseConstr :: (T.Text, Value) -> Maybe Constr
-parseConstr ("$eq",  v) = EQ  <$> parseSQLVal v
-parseConstr ("$neq", v) = NEQ <$> parseSQLVal v
-parseConstr ("$lt",  v) = LT  <$> parseSQLVal v
-parseConstr ("$lte", v) = LTE <$> parseSQLVal v
-parseConstr ("$gt",  v) = GT  <$> parseSQLVal v
-parseConstr ("$gte", v) = GTE <$> parseSQLVal v
-parseConstr ("$in", Array vs) = IN <$> mapM parseSQLVal (V.toList vs)
+parseConstr :: (T.Text, Value) -> Parser Constr
+parseConstr ("$eq",  v) = EQ  <$> parseJSON v
+parseConstr ("$neq", v) = NEQ <$> parseJSON v
+parseConstr ("$lt",  v) = LT  <$> parseJSON v
+parseConstr ("$lte", v) = LTE <$> parseJSON v
+parseConstr ("$gt",  v) = GT  <$> parseJSON v
+parseConstr ("$gte", v) = GTE <$> parseJSON v
+parseConstr ("$in", Array vs) = IN <$> mapM parseJSON (V.toList vs)
 parseConstr ("$null", Bool True)  = pure NULL
 parseConstr ("$null", Bool False) = pure NNULL
-parseConstr _           = Nothing
+parseConstr p = fail $ "Unknown keyword or keyword/value pair '"
+                <> show p
+                <> "' in constraint"
 
-parseWExpr :: Value -> Maybe WExpr
-parseWExpr (Object o) = AndE <$> mapM parsePairOr (M.toList o)
-parseWExpr _          = Nothing
-
-parsePairOr :: (T.Text, Value) -> Maybe PairOr
-parsePairOr ("$or", Array es) = OrE <$> mapM parseWExpr (V.toList es)
-parsePairOr (key, val)        = Pair key <$> parseValConst val
+parsePairOr :: (T.Text, Value) -> Parser PairOr
+parsePairOr ("$or", Array es) = OrE <$> mapM parseJSON (V.toList es)
+parsePairOr (key, val)        = Pair key <$> parseJSON val
