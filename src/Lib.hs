@@ -51,8 +51,7 @@ data Constr = EQ    SQLVal
             | GT    SQLVal
             | GTE   SQLVal
             | IN    [SQLVal]
-            | NULL
-            | NNULL
+            | NULL  Prelude.Bool
             deriving (Show)
 
 instance FromJSON WExpr where
@@ -107,8 +106,8 @@ toSQL'' (LTE _) = " <= ?"
 toSQL'' (GT  _) = " > ?"
 toSQL'' (GTE _) = " >= ?"
 toSQL'' (IN vs) = " IN " <> wrapInParens (qMarks vs)
-toSQL'' NULL    = " IS NULL"
-toSQL'' NNULL   = " IS NOT NULL"
+toSQL'' (NULL True)  = " IS NULL"
+toSQL'' (NULL False) = " IS NOT NULL"
 
 toSQLVec :: WExpr -> (T.Text, [SQLVal])
 toSQLVec e = (toSQL e, toPars e)
@@ -133,8 +132,7 @@ parseConstr ("$lte", v) = LTE <$> parseJSON v
 parseConstr ("$gt",  v) = GT  <$> parseJSON v
 parseConstr ("$gte", v) = GTE <$> parseJSON v
 parseConstr ("$in", Array vs) = IN <$> mapM parseJSON (V.toList vs)
-parseConstr ("$null", Bool True)  = pure NULL
-parseConstr ("$null", Bool False) = pure NNULL
+parseConstr ("$null", Bool b) = pure $ NULL b
 parseConstr p = fail $ "Unknown keyword or keyword/value pair '"
                 <> show p
                 <> "' in constraint"
