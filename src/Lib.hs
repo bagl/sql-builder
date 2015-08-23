@@ -111,9 +111,8 @@ parseSQLVal (Number n) = Just $ SQLNumber n
 parseSQLVal _          = Nothing
 
 parseValConst :: Value -> Maybe ValConst
-parseValConst v@String{} = Val <$> parseSQLVal v
 parseValConst o@Object{} = Constrs <$> parseConstrs o
-parseValConst _          = Nothing
+parseValConst v          = Val <$> parseSQLVal v
 
 parseConstrs :: Value -> Maybe [Constr]
 parseConstrs (Object o) = sequence $ map parseConstr $ M.toList o
