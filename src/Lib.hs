@@ -69,6 +69,11 @@ instance FromJSON SQLVal where
   parseJSON (Number n) = pure $ SQLNumber n
   parseJSON _          = fail "SQLVal not String or Number"
 
+jsonToWExprJson :: String -> String
+jsonToWExprJson json = case eitherDecode (BS.pack json) :: Either String WExpr of
+  Left msg -> msg
+  Right e  -> BS.unpack $ encode e
+
 qMarks :: [a] -> T.Text
 qMarks = T.intersperse ',' . T.pack . map (const '?')
 
@@ -108,11 +113,6 @@ toSQL'' (GTE _) = " >= ?"
 toSQL'' (IN vs) = " IN " <> wrapInParens (qMarks vs)
 toSQL'' (NULL True)  = " IS NULL"
 toSQL'' (NULL False) = " IS NOT NULL"
-
-jsonToWExpr :: String -> String
-jsonToWExpr json = case eitherDecode (BS.pack json) :: Either String WExpr of
-  Left msg -> msg
-  Right e  -> BS.unpack $ encode e
 
 wrapInParens :: T.Text -> T.Text
 wrapInParens t = "(" <> t <> ")"
