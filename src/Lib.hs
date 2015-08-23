@@ -18,12 +18,7 @@ import qualified Data.Scientific (Scientific)
 import           Data.Scientific as S
 
 data WExpr = AndE [PairOr]
-
-instance Show WExpr where
-  show e = let (sql, pars) = toSQLVec e
-           in "SQL: " <> T.unpack sql
-              <> "\n"
-              <> "PARS: " <> show pars
+           deriving (Show)
 
 type Key = T.Text
 
@@ -34,11 +29,7 @@ data PairOr = Pair Key ValConst
 data SQLVal = SQLString T.Text
             | SQLNumber Scientific
             | SQLTimestamp UTCTime
-
-instance Show SQLVal where
-  show (SQLString s)     = show s
-  show (SQLNumber n)     = show n
-  show (SQLTimestamp ts) = formatISO8601 ts
+            deriving (Show)
 
 data ValConst = Val SQLVal
               | Constrs [Constr]
@@ -59,9 +50,8 @@ instance FromJSON WExpr where
   parseJSON _          = fail "WExpr not Object"
 
 instance ToJSON WExpr where
-  toJSON e = let (sql, pars) = toSQLVec e
-             in object [("sql", String sql)
-                       ,("pars", Array $ V.fromList $ map toJSON pars)]
+  toJSON e = object [("sql", String $ toSQL e)
+                    ,("pars", Array $ V.fromList $ map toJSON $ toPars e)]
 
 instance ToJSON SQLVal where
   toJSON (SQLString s) = String s
@@ -118,9 +108,6 @@ toSQL'' (GTE _) = " >= ?"
 toSQL'' (IN vs) = " IN " <> wrapInParens (qMarks vs)
 toSQL'' (NULL True)  = " IS NULL"
 toSQL'' (NULL False) = " IS NOT NULL"
-
-toSQLVec :: WExpr -> (T.Text, [SQLVal])
-toSQLVec e = (toSQL e, toPars e)
 
 jsonToWExpr :: String -> String
 jsonToWExpr json = case eitherDecode (BS.pack json) :: Either String WExpr of
