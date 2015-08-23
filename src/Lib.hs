@@ -126,8 +126,8 @@ parseConstr ("$lte", v) = LTE <$> parseSQLVal v
 parseConstr ("$gt",  v) = GT  <$> parseSQLVal v
 parseConstr ("$gte", v) = GTE <$> parseSQLVal v
 parseConstr ("$in", Array vs) = IN <$> mapM parseSQLVal (V.toList vs)
-parseConstr ("$null", Bool True)  = Just NULL
-parseConstr ("$null", Bool False) = Just NNULL
+parseConstr ("$null", Bool True)  = pure NULL
+parseConstr ("$null", Bool False) = pure NNULL
 parseConstr _           = Nothing
 
 parseWExpr :: Value -> Maybe WExpr
@@ -136,4 +136,4 @@ parseWExpr _          = Nothing
 
 parsePairOr :: (T.Text, Value) -> Maybe PairOr
 parsePairOr ("$or", Array es) = OrE <$> mapM parseWExpr (V.toList es)
-parsePairOr (key, val) = Pair key <$> parseValConst val
+parsePairOr (key, val)        = Pair key <$> parseValConst val
