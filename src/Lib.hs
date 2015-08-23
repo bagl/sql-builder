@@ -115,7 +115,7 @@ parseValConst o@Object{} = Constrs <$> parseConstrs o
 parseValConst v          = Val <$> parseSQLVal v
 
 parseConstrs :: Value -> Maybe [Constr]
-parseConstrs (Object o) = sequence $ map parseConstr $ M.toList o
+parseConstrs (Object o) = mapM parseConstr $ M.toList o
 parseConstrs _          = Nothing
 
 parseConstr :: (T.Text, Value) -> Maybe Constr
@@ -125,15 +125,15 @@ parseConstr ("$lt",  v) = LT  <$> parseSQLVal v
 parseConstr ("$lte", v) = LTE <$> parseSQLVal v
 parseConstr ("$gt",  v) = GT  <$> parseSQLVal v
 parseConstr ("$gte", v) = GTE <$> parseSQLVal v
-parseConstr ("$in", Array vs) = IN <$> sequence (map parseSQLVal $ V.toList vs)
+parseConstr ("$in", Array vs) = IN <$> mapM parseSQLVal (V.toList vs)
 parseConstr ("$null", Bool True)  = Just NULL
 parseConstr ("$null", Bool False) = Just NNULL
 parseConstr _           = Nothing
 
 parseWExpr :: Value -> Maybe WExpr
-parseWExpr (Object o) = AndE <$> sequence (map parsePairOr $ M.toList o)
+parseWExpr (Object o) = AndE <$> mapM parsePairOr (M.toList o)
 parseWExpr _          = Nothing
 
 parsePairOr :: (T.Text, Value) -> Maybe PairOr
-parsePairOr ("$or", Array es) = OrE <$> sequence (map parseWExpr $ V.toList es)
+parsePairOr ("$or", Array es) = OrE <$> mapM parseWExpr (V.toList es)
 parsePairOr (key, val) = Pair key <$> parseValConst val
