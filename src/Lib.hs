@@ -17,7 +17,12 @@ import qualified Data.Scientific (Scientific)
 import           Data.Scientific as S
 
 data WExpr = AndE [PairOr]
-           deriving (Show)
+
+instance Show WExpr where
+  show e = let (sql, pars) = toSQLVec e
+           in "SQL: " <> T.unpack sql
+              <> "\n"
+              <> "PARS: " <> show pars
 
 type Key = T.Text
 
@@ -28,7 +33,11 @@ data PairOr = Pair Key ValConst
 data SQLVal = SQLString T.Text
             | SQLNumber Scientific
             | SQLTimestamp UTCTime
-            deriving (Show)
+
+instance Show SQLVal where
+  show (SQLString s)     = show s
+  show (SQLNumber n)     = show n
+  show (SQLTimestamp ts) = formatISO8601 ts
 
 data ValConst = Val SQLVal
               | Constrs [Constr]
@@ -98,16 +107,18 @@ toSQLVec :: WExpr -> (T.Text, [SQLVal])
 toSQLVec e = (toSQL e, toPars e)
 
 jsonToWExpr :: String -> String
-jsonToWExpr json = show $ toSQLVec <$> decode (BS.pack json)
+jsonToWExpr json = case decode (BS.pack json) :: Maybe WExpr of
+  Nothing -> "ERROR: Cannot parse: " <> json
+  Just e  -> show e
 
 wrapInParens :: T.Text -> T.Text
 wrapInParens t = "(" <> t <> ")"
 
 parseSQLVal :: Value -> Maybe SQLVal
-parseSQLVal (String s) = case parseISO8601 (T.unpack s) of
-  Nothing -> Just $ SQLString s
-  Just ts -> Just $ SQLTimestamp ts
-parseSQLVal (Number n) = Just $ SQLNumber n
+parseSQLVal (String s) = pure
+                         $ maybe (SQLString s) SQLTimestamp
+                         $ parseISO8601 (T.unpack s)
+parseSQLVal (Number n) = pure $ SQLNumber n
 parseSQLVal _          = Nothing
 
 parseValConst :: Value -> Maybe ValConst
