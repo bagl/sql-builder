@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Lib where
+{-# LANGUAGE DeriveFoldable    #-}
+module WSQL where
 
 import           Prelude hiding (EQ, LT, GT)
 import           Control.Applicative
@@ -7,6 +8,7 @@ import           Control.Monad (mzero)
 import           Data.Aeson
 import           Data.Aeson.Types (Parser)
 import qualified Data.ByteString.Lazy.Char8 as BS
+import           Data.Foldable (Foldable)
 import           Data.Monoid ((<>))
 import qualified Data.Vector as V
 import qualified Data.HashMap.Strict as M
@@ -17,14 +19,17 @@ import           Data.Time.ISO8601 (formatISO8601, parseISO8601)
 import qualified Data.Scientific (Scientific)
 import           Data.Scientific as S
 
+data WSQL = WSQL String [SQLVal] -- TODO: WSQL [Field] String [SQLVal] or something similar where Field is a column name that can be present
+            deriving (Show)
+
 data WExpr = AndE [PairOr]
-           deriving (Show)
+           deriving (Show, Foldable)
 
 type Key = T.Text
 
 data PairOr = Pair Key ValConst
             | OrE [WExpr]
-            deriving (Show)
+            deriving (Show, Foldable)
 
 data SQLVal = SQLString T.Text
             | SQLNumber Scientific
@@ -33,7 +38,7 @@ data SQLVal = SQLString T.Text
 
 data ValConst = Val SQLVal
               | Constrs [Constr]
-              deriving (Show)
+              deriving (Show, Foldable)
 
 data Constr = EQ    SQLVal
             | NEQ   SQLVal
@@ -52,6 +57,10 @@ instance FromJSON WExpr where
 instance ToJSON WExpr where
   toJSON e = object [("sql", String $ toSQL e)
                     ,("pars", Array $ V.fromList $ map toJSON $ toPars e)]
+
+instance FromJSON WSQL where
+  parseJSON json = parseJSON json >>= \wexpr ->
+    return $ WSQL (T.unpack $ toSQL wexpr) (toPars wexpr)
 
 instance ToJSON SQLVal where
   toJSON (SQLString s) = String s

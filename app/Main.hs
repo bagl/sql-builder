@@ -1,6 +1,6 @@
 module Main where
 
-import Lib
+import WSQL
 
 main :: IO ()
 main = interact $ unlines . map jsonToWExprJson . lines
