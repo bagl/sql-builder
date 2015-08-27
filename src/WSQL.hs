@@ -8,7 +8,6 @@ import           Control.Monad (mzero)
 import           Data.Aeson
 import           Data.Aeson.Types (Parser)
 import qualified Data.ByteString.Lazy.Char8 as BS
-import           Data.Foldable (Foldable)
 import           Data.Monoid ((<>))
 import qualified Data.Vector as V
 import qualified Data.HashMap.Strict as M
@@ -23,13 +22,13 @@ data WSQL = WSQL String [SQLVal] -- TODO: WSQL [Field] String [SQLVal] or someth
             deriving (Show)
 
 data WExpr = AndE [PairOr]
-           deriving (Show, Foldable)
+           deriving (Show)
 
 type Key = T.Text
 
 data PairOr = Pair Key ValConst
             | OrE [WExpr]
-            deriving (Show, Foldable)
+            deriving (Show)
 
 data SQLVal = SQLString T.Text
             | SQLNumber Scientific
@@ -38,7 +37,7 @@ data SQLVal = SQLString T.Text
 
 data ValConst = Val SQLVal
               | Constrs [Constr]
-              deriving (Show, Foldable)
+              deriving (Show)
 
 data Constr = EQ    SQLVal
             | NEQ   SQLVal
