@@ -49,12 +49,12 @@ instance FromJSON WExpr where
   parseJSON _          = fail "WExpr not Object"
 
 instance ToJSON WExpr where
-  toJSON e = object [("sql", String $ toSQL e)
-                    ,("pars", Array $ V.fromList $ map toJSON $ toPars e)]
+  toJSON e = object [("sql", String $ wExprToSQL e)
+                    ,("pars", Array $ V.fromList $ map toJSON $ wExprToPars e)]
 
 instance FromJSON WSQL where
-  parseJSON json = parseJSON json >>= \wexpr ->
-    return $ WSQL (T.unpack $ toSQL wexpr) (toPars wexpr)
+  parseJSON js = parseJSON js >>= \wexpr ->
+    return $ WSQL (T.unpack $ wExprToSQL wexpr) (wExprToPars wexpr)
 
 instance ToJSON SQLVal where
   toJSON (SQLString s) = String s
@@ -73,49 +73,49 @@ instance FromJSON SQLVal where
   parseJSON _          = fail "SQLVal not String or Number"
 
 jsonToWExprJson :: String -> String
-jsonToWExprJson json = case eitherDecode (BS.pack json) :: Either String WExpr of
+jsonToWExprJson js = case eitherDecode (BS.pack js) :: Either String WExpr of
   Left msg -> msg
   Right e  -> BS.unpack $ encode e
 
 qMarks :: [a] -> T.Text
 qMarks = T.intersperse ',' . T.pack . map (const '?')
 
-toPars :: WExpr -> [SQLVal]
-toPars (AndE l) = concatMap toPars' l
+wExprToPars :: WExpr -> [SQLVal]
+wExprToPars (AndE l) = concatMap pairOrToPars l
 
-toPars' :: PairOr -> [SQLVal]
-toPars' (Pair _ (Val v))      = [v]
-toPars' (Pair _ (Constrs cs)) = concatMap toPars'' cs
-toPars' (OrE exps)            = concatMap toPars exps
+pairOrToPars :: PairOr -> [SQLVal]
+pairOrToPars (Pair _ (Val v))      = [v]
+pairOrToPars (Pair _ (Constrs cs)) = concatMap constrToPars cs
+pairOrToPars (OrE exps)            = concatMap wExprToPars exps
 
-toPars'' :: Constr -> [SQLVal]
-toPars'' (EQ  v) = [v]
-toPars'' (NEQ v) = [v]
-toPars'' (LT  v) = [v]
-toPars'' (LTE v) = [v]
-toPars'' (GTE v) = [v]
-toPars'' (GT  v) = [v]
-toPars'' (IN vs) = vs
-toPars'' _       = []
+constrToPars :: Constr -> [SQLVal]
+constrToPars (EQ  v) = [v]
+constrToPars (NEQ v) = [v]
+constrToPars (LT  v) = [v]
+constrToPars (LTE v) = [v]
+constrToPars (GTE v) = [v]
+constrToPars (GT  v) = [v]
+constrToPars (IN vs) = vs
+constrToPars _       = []
 
-toSQL :: WExpr -> T.Text
-toSQL (AndE l) = wrapInParens $ T.intercalate " AND " (map toSQL' l)
+wExprToSQL :: WExpr -> T.Text
+wExprToSQL (AndE l) = wrapInParens $ T.intercalate " AND " (map pairOrToSQL l)
 
-toSQL' :: PairOr -> T.Text
-toSQL' (Pair k (Val _))      = k <> " = ?"
-toSQL' (Pair k (Constrs cs)) = T.intercalate " AND " $ map ((k <>) . toSQL'') cs
-toSQL' (OrE exps)            = wrapInParens $ T.intercalate " OR " $ map toSQL exps
+pairOrToSQL :: PairOr -> T.Text
+pairOrToSQL (Pair k (Val _))      = k <> " = ?"
+pairOrToSQL (Pair k (Constrs cs)) = T.intercalate " AND " $ map ((k <>) . constrToSQL) cs
+pairOrToSQL (OrE exps)            = wrapInParens $ T.intercalate " OR " $ map wExprToSQL exps
 
-toSQL'' :: Constr -> T.Text
-toSQL'' (EQ  _) = " = ?"
-toSQL'' (NEQ _) = " <> ?"
-toSQL'' (LT  _) = " < ?"
-toSQL'' (LTE _) = " <= ?"
-toSQL'' (GT  _) = " > ?"
-toSQL'' (GTE _) = " >= ?"
-toSQL'' (IN vs) = " IN " <> wrapInParens (qMarks vs)
-toSQL'' (NULL True)  = " IS NULL"
-toSQL'' (NULL False) = " IS NOT NULL"
+constrToSQL :: Constr -> T.Text
+constrToSQL (EQ  _) = " = ?"
+constrToSQL (NEQ _) = " <> ?"
+constrToSQL (LT  _) = " < ?"
+constrToSQL (LTE _) = " <= ?"
+constrToSQL (GT  _) = " > ?"
+constrToSQL (GTE _) = " >= ?"
+constrToSQL (IN vs) = " IN " <> wrapInParens (qMarks vs)
+constrToSQL (NULL True)  = " IS NULL"
+constrToSQL (NULL False) = " IS NOT NULL"
 
 wrapInParens :: T.Text -> T.Text
 wrapInParens t = "(" <> t <> ")"
