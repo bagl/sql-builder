@@ -3,4 +3,4 @@ packages:
 - '.'
 extra-deps:
 - iso8601-time-0.1.4
-resolver: lts-3.1
+resolver: lts-3.2
