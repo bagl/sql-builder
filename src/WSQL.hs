@@ -1,22 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveFoldable    #-}
 module WSQL where
 
-import           Prelude hiding (EQ, LT, GT)
-import           Control.Applicative
-import           Control.Monad (mzero)
 import           Data.Aeson
 import           Data.Aeson.Types (Parser)
 import qualified Data.ByteString.Lazy.Char8 as BS
-import           Data.Monoid ((<>))
-import qualified Data.Vector as V
 import qualified Data.HashMap.Strict as M
+import           Data.Monoid ((<>))
+import           Data.Scientific as S
 import qualified Data.Text as T
-import qualified Data.Time.Clock as C
 import           Data.Time.Clock (UTCTime)
 import           Data.Time.ISO8601 (formatISO8601, parseISO8601)
-import qualified Data.Scientific (Scientific)
-import           Data.Scientific as S
+import qualified Data.Vector as V
+import           Prelude hiding (EQ, LT, GT)
 
 data WSQL = WSQL String [SQLVal] -- TODO: WSQL [Field] String [SQLVal] or something similar where Field is a column name that can be present
             deriving (Show)
